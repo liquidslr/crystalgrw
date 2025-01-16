@@ -1,0 +1,65 @@
+root_path: ${PROJECT_ROOT}/data/carbon_24
+prop: null
+prop_classes: null
+num_targets: 1
+
+niggli: true
+primitive: false
+graph_method: crystalnn
+lattice_scale_method: scale_length
+preprocess_workers: 30
+readout: mean
+max_atoms: 24
+otf_graph: false
+eval_model_name: carbon
+
+train_max_epochs: 4000
+early_stopping_patience: 100000
+teacher_forcing_max_epoch: 1000
+
+datamodule:
+  _target_: CrystDataset
+
+  datasets:
+    train:
+      _target_: crystalgrw.common.dataset.CrystDataset
+      name: Carbon24 train
+      path: ${data.root_path}/train.csv
+      prop: ${data.prop}
+      niggli: ${data.niggli}
+      primitive: ${data.primitive}
+      graph_method: ${data.graph_method}
+      lattice_scale_method: ${data.lattice_scale_method}
+      preprocess_workers: ${data.preprocess_workers}
+
+    val:
+      - _target_: crystalgrw.common.dataset.CrystDataset
+        name: Carbon24 val
+        path: ${data.root_path}/val.csv
+        prop: ${data.prop}
+        niggli: ${data.niggli}
+        primitive: ${data.primitive}
+        graph_method: ${data.graph_method}
+        lattice_scale_method: ${data.lattice_scale_method}
+        preprocess_workers: ${data.preprocess_workers}
+
+    test:
+      - _target_: crystalgrw.common.dataset.CrystDataset
+        name: Carbon24 test
+        path: ${data.root_path}/test.csv
+        prop: ${data.prop}
+        niggli: ${data.niggli}
+        primitive: ${data.primitive}
+        graph_method: ${data.graph_method}
+        lattice_scale_method: ${data.lattice_scale_method}
+        preprocess_workers: ${data.preprocess_workers}
+
+  num_workers:
+    train: 0
+    val: 0
+    test: 0
+
+  batch_size:
+    train: 32
+    val: 64
+    test: 64

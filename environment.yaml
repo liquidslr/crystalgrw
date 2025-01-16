@@ -1,0 +1,37 @@
+name: crystalgrw
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+  - conda-forge
+dependencies:
+  - numpy>=2.1.1
+  - pip
+  - python=3.11
+  - pytorch=2.4.1
+  - pytorch-cuda=12.4
+  - setuptools
+  - pip:
+    - argparse
+    - ase
+    - e3nn
+    - einops
+    - joblib
+    - omegaconf
+    - p-tqdm
+    - pathlib
+    - pymatgen
+    - scikit-learn
+    - smact
+
+    # Pytorch Geometric dependencies:
+    - torch-geometric
+    - -f https://data.pyg.org/whl/torch-2.4.0+cu124.html
+    # - pyg_lib
+    - torch-cluster
+    - torch-scatter
+    - torch-sparse
+    - torch-spline-conv
+
+    #
+    - -e .
