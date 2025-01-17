@@ -12,14 +12,15 @@ Manifolds depicted in the figure are $`\mathbb{T}^2`$, $`\Delta^2`$, and $`\math
 <img align="middle" src="./assets/crystalgrw_sampling.png" alt="Sampling scheme for CrystalGRW." width="800" />
 </p>
 
-# Installation
+## Installation
 ```
+git clone https://github.com/trachote/crystalgrw.git
 cd crystalgrw
 conda env create -f environment.yaml
 conda activate crystalgrw
 ```
 
-# Commands
+## Usage
 Training command:
 ```
 python scripts/train.py --config_path conf/mp_condition.yaml \
@@ -48,15 +49,17 @@ Compute metrics has not been tested with the current version. An update soon wil
 ### Example runs with MP-20 dataset
 - Unzip data/mp_20.zip
 - Change path-to-folder/crystalgrw in conf/*.yaml files to ```pwd```
+  - conf/mp_example.yaml is a config file for training the model.
+  - conf/mp_condition.yaml is a config file for training the model with controlled conditions.
 - Run commands
 
-# More configurations
-The code is designed to apply for various tasks in Materials Science. 
-CrystalGRW setup is to corrupt three properties: fraction coordinates, atomic types, and lattice matrices.
-Some particular tasks may need to corrupt only some of these properties,
-so this can be configured through a config file by setting True or False at corrupt_{property} tags.
+## Configurations
+The CrystalGRW setup can corrupt three properties: 
+fractional coordinates, atomic types, and lattice matrices. 
+For specific tasks, you may need to corrupt only some of these properties. 
+This can be configured through a config file by setting the ```corrupt_{property}``` tags.
 
-# Citations
+## Citations
 Ones may find this repository is useful, please cite our papers:
 ```
 @misc{tangsongcharoen2025crystalgrw,
@@ -70,9 +73,9 @@ Ones may find this repository is useful, please cite our papers:
 }
 ```
 
-### GNN submodules used in this code
-Two options for the denoiser (decoder)
-1) EquiformerV2
+### GNN submodules
+Two options for the denoiser (decoder) <br>
+1) [EquiformerV2](https://github.com/atomicarchitects/equiformer_v2)
 ```
 @inproceedings{
 liao2024equiformerv,
@@ -83,7 +86,7 @@ year={2024},
 url={https://openreview.net/forum?id=mCOBKZmrzD}
 }
 ```
-2) GemNet-dT
+2) [GemNet-dT](https://github.com/txie-93/cdvae/tree/main/cdvae/pl_modules/gemnet)
 ```
 @inproceedings{
 klicpera2021gemnet,
@@ -95,8 +98,8 @@ year={2021},
 url={https://openreview.net/forum?id=HS_sOaxS9K-}
 }
 ```
-One option for the encoder (if used)
-3) DimeNet++
+One option for the encoder (if used) <br>
+3) [DimeNet++](https://github.com/txie-93/cdvae/blob/main/cdvae/pl_modules/gnn.py)
 ```
 @misc{gasteiger2022fast,
       title={Fast and Uncertainty-Aware Directional Message Passing for Non-Equilibrium Molecules}, 
