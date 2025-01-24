@@ -121,7 +121,7 @@ def save_output(samples, model_path, out_name, args, load_data, start_time):
             structures = get_ase_atoms(samples)
 
         save_path = os.path.join(args.model_path, out_name.split(".")[0])
-        os.makedirs(save_path, exist_ok=True)
+        # os.makedirs(save_path, exist_ok=True)
         write(save_path+".xyz", structures)
 
 
