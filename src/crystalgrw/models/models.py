@@ -182,7 +182,7 @@ class CrystalGRW(BaseModel):
                        "lengths": lengths,
                        "angles": angles,
                        "frac_coords": x["frac_coords"],
-                       "atom_types": atom_types,
+                       "atom_types": x["atom_types"],
                        "is_traj": False}
 
         if ld_kwargs.save_traj:
