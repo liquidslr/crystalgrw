@@ -414,71 +414,71 @@ class EquiformerV2(BaseModel):
                 self.use_sep_s2_act,
                 alpha_drop=0.0
             )
-            if self.regress_lattices:
-                # For equivariant lattice
-                # self.lattice_block = SO2EquivariantGraphAttention(
-                #    self.sphere_channels,
-                #    self.attn_hidden_channels,
-                #    self.num_heads,
-                #    self.attn_alpha_channels,
-                #    self.attn_value_channels,
-                #    3,
-                #    self.lmax_list,
-                #    self.mmax_list,
-                #    self.SO3_rotation,
-                #    self.mappingReduced,
-                #    self.SO3_grid,
-                #    self.max_num_elements,
-                #    self.edge_channels_list,
-                #    self.block_use_atom_edge_embedding,
-                #    self.use_m_share_rad,
-                #    self.attn_activation,
-                #    self.use_s2_act_attn,
-                #    self.use_attn_renorm,
-                #    self.use_gate_act,
-                #    self.use_sep_s2_act,
-                #    alpha_drop=0.0
-                # )
+        if self.regress_lattices:
+            # For equivariant lattice
+            # self.lattice_block = SO2EquivariantGraphAttention(
+            #    self.sphere_channels,
+            #    self.attn_hidden_channels,
+            #    self.num_heads,
+            #    self.attn_alpha_channels,
+            #    self.attn_value_channels,
+            #    3,
+            #    self.lmax_list,
+            #    self.mmax_list,
+            #    self.SO3_rotation,
+            #    self.mappingReduced,
+            #    self.SO3_grid,
+            #    self.max_num_elements,
+            #    self.edge_channels_list,
+            #    self.block_use_atom_edge_embedding,
+            #    self.use_m_share_rad,
+            #    self.attn_activation,
+            #    self.use_s2_act_attn,
+            #    self.use_attn_renorm,
+            #    self.use_gate_act,
+            #    self.use_sep_s2_act,
+            #    alpha_drop=0.0
+            # )
 
-                # For invariant lattice
-                self.lattice_block = FeedForwardNetwork(
-                    self.sphere_channels,
-                    self.ffn_hidden_channels*2,
-                    9,
-                    self.lmax_list,
-                    self.mmax_list,
-                    self.SO3_grid,
-                    self.ffn_activation,
-                    self.use_gate_act,
-                    self.use_grid_mlp,
-                    self.use_sep_s2_act
-                )
+            # For invariant lattice
+            self.lattice_block = FeedForwardNetwork(
+                self.sphere_channels,
+                self.ffn_hidden_channels*2,
+                9,
+                self.lmax_list,
+                self.mmax_list,
+                self.SO3_grid,
+                self.ffn_activation,
+                self.use_gate_act,
+                self.use_grid_mlp,
+                self.use_sep_s2_act
+            )
 
-                # For tensor decomposition trick
-                # self.lattice_block = FeedForwardNetwork(
-                #     self.sphere_channels,
-                #     self.ffn_hidden_channels,
-                #     1,
-                #     self.lmax_list,
-                #     self.mmax_list,
-                #     self.SO3_grid,
-                #     self.ffn_activation,
-                #     self.use_gate_act,
-                #     self.use_grid_mlp,
-                #     self.use_sep_s2_act
-                # )
-                # self.lattice_block2 = FeedForwardNetwork(
-                #     self.sphere_channels,
-                #     self.ffn_hidden_channels,
-                #     3,
-                #     self.lmax_list,
-                #     self.mmax_list,
-                #     self.SO3_grid,
-                #     self.ffn_activation,
-                #     self.use_gate_act,
-                #     self.use_grid_mlp,
-                #     self.use_sep_s2_act
-                # )
+            # For tensor decomposition trick
+            # self.lattice_block = FeedForwardNetwork(
+            #     self.sphere_channels,
+            #     self.ffn_hidden_channels,
+            #     1,
+            #     self.lmax_list,
+            #     self.mmax_list,
+            #     self.SO3_grid,
+            #     self.ffn_activation,
+            #     self.use_gate_act,
+            #     self.use_grid_mlp,
+            #     self.use_sep_s2_act
+            # )
+            # self.lattice_block2 = FeedForwardNetwork(
+            #     self.sphere_channels,
+            #     self.ffn_hidden_channels,
+            #     3,
+            #     self.lmax_list,
+            #     self.mmax_list,
+            #     self.SO3_grid,
+            #     self.ffn_activation,
+            #     self.use_gate_act,
+            #     self.use_grid_mlp,
+            #     self.use_sep_s2_act
+            # )
 
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
