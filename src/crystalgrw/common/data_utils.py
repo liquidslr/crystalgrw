@@ -1082,7 +1082,8 @@ def get_ase_atoms(samples):
 
     if len(samples["num_atoms"].shape) == 1:
         for k in samples.keys():
-            samples[k] = samples[k].unsqueeze(0)
+            if isinstance(samples[k], torch.Tensor):
+                samples[k] = samples[k].unsqueeze(0)
 
     j = 0
     for i, m in enumerate(tqdm(range(samples["num_atoms"].shape[1]), desc=f"Save XYZ")):
@@ -1113,7 +1114,8 @@ def get_ase_traj_atoms(samples):
 
     if len(samples["num_atoms"].shape) == 1:
         for k in samples.keys():
-            samples[k] = samples[k].unsqueeze(0)
+            if isinstance(samples[k], torch.Tensor):
+                samples[k] = samples[k].unsqueeze(0)
 
     j = 0
     for i, m in enumerate(tqdm(range(samples["num_atoms"].shape[1]), desc=f"Save XYZ")):
