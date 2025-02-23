@@ -88,6 +88,7 @@ class CrystalGRW(BaseModel):
                                natoms=natoms,
                                cond_feat=condition,
                                batch=batch_idx,
+                               noisy_atom_types=x_t["atom_types"],
                                )
 
         # Compute losses

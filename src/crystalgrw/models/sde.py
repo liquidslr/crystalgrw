@@ -92,7 +92,9 @@ class BaseGRW(nn.Module):
             if score_fn is not None:
                 n = T - k * t
                 p = t * (N - k) ** adaptive_timestep
-                scores = score_fn(t=n, **self.retransform(x_t))
+                x_ret = self.retransform(x_t)
+                scores = score_fn(t=n, noisy_atom_types=x_ret["atom_types"],
+                                  **x_ret)
                 scores = self.convert_score(x_t, scores, n, num_atoms)
             else:
                 if (N == 1) and (self.forward_algo == "skip"):
