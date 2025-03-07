@@ -23,6 +23,7 @@ dependencies:
     - pymatgen
     - scikit-learn
     - smact
+    - matminer
 
     # Pytorch Geometric dependencies:
     - torch-geometric

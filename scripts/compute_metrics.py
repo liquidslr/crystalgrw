@@ -7,12 +7,15 @@ def main(cfg):
     run_compute_metrics(cfg)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root_path', required=True)
-    parser.add_argument('--classifier_path')
-    parser.add_argument('--type', default='gen')
-    parser.add_argument('--label', default='')
-    parser.add_argument('--tasks', nargs='+', default=['recon', 'gen', 'opt'])
+    parser.add_argument("--root_path", required=True, type=str)
+    parser.add_argument("--dataset_path", required=True, type=str)
+    parser.add_argument("--gen_file_name", required=True, type=str)
+    parser.add_argument("--recon_file_name", default=None, type=str)
+    parser.add_argument("--opt_file_name", default=None, type=str)
+    parser.add_argument("--suffix", default="")
+    parser.add_argument("--tasks", nargs="+", default=["gen"])
+    parser.add_argument("--n_samples", default=1000, type=int)
     args = parser.parse_args()
     main(args)

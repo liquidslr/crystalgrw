@@ -4,6 +4,7 @@ import os
 import json
 
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 from p_tqdm import p_map
@@ -21,43 +22,48 @@ from ..common.eval_utils import (
     load_config, load_data, get_crystals_list, prop_model_eval, compute_cov, class_model_eval)
 
 CrystalNNFP = CrystalNNFingerprint.from_preset("ops")
-CompFP = ElementProperty.from_preset('magpie')
+CompFP = ElementProperty.from_preset("magpie")
 
 Percentiles = {
-    'mp20': np.array([-3.17562208, -2.82196882, -2.52814761]),
-    'mp20_class': np.array([-3.17562208, -2.82196882, -2.52814761]),
-    'carbon': np.array([-154.527093, -154.45865733, -154.44206825]),
-    'perovskite': np.array([0.43924842, 0.61202443, 0.7364607]),
+    "mp20": np.array([-3.17562208, -2.82196882, -2.52814761]),
+    "mp20_class": np.array([-3.17562208, -2.82196882, -2.52814761]),
+    "carbon": np.array([-154.527093, -154.45865733, -154.44206825]),
+    "perovskite": np.array([0.43924842, 0.61202443, 0.7364607]),
 }
 
 COV_Cutoffs = {
-    'mp20': {'struc': 0.4, 'comp': 10.},
-    'mp20_class': {'struc': 0.4, 'comp': 10.},
-    'carbon': {'struc': 0.2, 'comp': 4.},
-    'perovskite': {'struc': 0.2, 'comp': 4},
+    "mp20": {"struc": 0.4, "comp": 10.},
+    "mp20_class": {"struc": 0.4, "comp": 10.},
+    "carbon": {"struc": 0.2, "comp": 4.},
+    "perovskite": {"struc": 0.2, "comp": 4},
 }
 
 
 class Crystal(object):
 
-    def __init__(self, crys_array_dict, get_argmax=False):
-        self.frac_coords = crys_array_dict['frac_coords']
-        self.atom_types = crys_array_dict['atom_types']
-        if get_argmax:
-            self.atom_types = self.atom_types.argmax(-1)+1
-        self.lengths = crys_array_dict['lengths']
-        self.angles = crys_array_dict['angles']
-        self.dict = crys_array_dict
+    def __init__(self, crystal, analyze=True):
+        if isinstance(crystal, dict):
+            self.frac_coords = crystal["frac_coords"]
+            self.atom_types = crystal["atom_types"]
+            self.lengths = crystal["lengths"]
+            self.angles = crystal["angles"]
+            self.dict = crystal
+            self.get_structure()
+        elif isinstance(crystal, str):
+            self.structure = Structure.from_str(crystal, "cif", primitive=True)
+            self.constructed = True
+        else:
+            raise TypeError("crystal must be either a dict or a cif string")
 
-        self.get_structure()
-        self.get_composition()
-        self.get_validity()
-        self.get_fingerprints()
+        if analyze:
+            self.get_composition()
+            self.get_validity()
+            self.get_fingerprints()
 
     def get_structure(self):
         if min(self.lengths.tolist()) < 0:
             self.constructed = False
-            self.invalid_reason = 'non_positive_lattice'
+            self.invalid_reason = "non_positive_lattice"
         else:
             try:
                 self.structure = Structure(
@@ -67,10 +73,10 @@ class Crystal(object):
                 self.constructed = True
             except Exception:
                 self.constructed = False
-                self.invalid_reason = 'construction_raises_exception'
+                self.invalid_reason = "construction_raises_exception"
             if self.structure.volume < 0.1:
                 self.constructed = False
-                self.invalid_reason = 'unrealistically_small_lattice'
+                self.invalid_reason = "unrealistically_small_lattice"
 
     def get_composition(self):
         elem_counter = Counter(self.atom_types)
@@ -80,7 +86,7 @@ class Crystal(object):
         counts = np.array(counts)
         counts = counts / np.gcd.reduce(counts)
         self.elems = elems
-        self.comps = tuple(counts.astype('int').tolist())
+        self.comps = tuple(counts.astype("int").tolist())
 
     def get_validity(self):
         self.comp_valid = smact_validity(self.elems, self.comps)
@@ -114,11 +120,11 @@ class RecEval(object):
             stol=stol, angle_tol=angle_tol, ltol=ltol)
         self.preds = pred_crys
         self.gts = gt_crys
-        
+
     def get_match_rate_and_rms(self):
         def process_one(pred, gt, is_valid):
             if not is_valid:
-                return None, np.array([None]*3), np.array([None]*3)
+                return None, np.array([None] * 3), np.array([None] * 3)
             try:
                 rms_dist = self.matcher.get_rms_dist(pred.structure, gt.structure)
                 rms_dist = None if rms_dist is None else rms_dist[0]
@@ -128,7 +134,8 @@ class RecEval(object):
                 rms_angle = np.array(pred_lat.angles) - np.array(gt_lat.angles)
                 return rms_dist, rms_length, rms_angle
             except Exception:
-                return None, np.array([None]*3), np.array([None]*3)
+                return None, np.array([None] * 3), np.array([None] * 3)
+
         validity = [c.valid for c in self.preds]
 
         rms_dists, rms_lengths, rms_angles = [], [], []
@@ -140,35 +147,35 @@ class RecEval(object):
         rms_angles = np.concatenate(rms_angles)
         match_rate = sum(rms_dists != None) / len(self.preds)
         mean_rms_dist = rms_dists[rms_dists != None].mean()
-        mean_rms_lengths = np.sqrt((rms_lengths[rms_lengths != None]**2).mean())
-        mean_rms_angles = np.sqrt((rms_angles[rms_angles != None]**2).mean())
-        return {'match_rate': match_rate,
-                'rms_dist': mean_rms_dist,
-                'rms_lengths': mean_rms_lengths,
-                'rms_angles': mean_rms_angles}
+        mean_rms_lengths = np.sqrt((rms_lengths[rms_lengths != None] ** 2).mean())
+        mean_rms_angles = np.sqrt((rms_angles[rms_angles != None] ** 2).mean())
+        return {"match_rate": match_rate,
+                "rms_dist": mean_rms_dist,
+                "rms_lengths": mean_rms_lengths,
+                "rms_angles": mean_rms_angles}
 
-#     def get_match_rate_and_rms(self):
-#         def process_one(pred, gt, is_valid):
-#             if not is_valid:
-#                 return None
-#             try:
-#                 rms_dist = self.matcher.get_rms_dist(
-#                     pred.structure, gt.structure)
-#                 rms_dist = None if rms_dist is None else rms_dist[0]
-#                 return rms_dist
-#             except Exception:
-#                 return None
-#         validity = [c.valid for c in self.preds]
+    #     def get_match_rate_and_rms(self):
+    #         def process_one(pred, gt, is_valid):
+    #             if not is_valid:
+    #                 return None
+    #             try:
+    #                 rms_dist = self.matcher.get_rms_dist(
+    #                     pred.structure, gt.structure)
+    #                 rms_dist = None if rms_dist is None else rms_dist[0]
+    #                 return rms_dist
+    #             except Exception:
+    #                 return None
+    #         validity = [c.valid for c in self.preds]
 
-#         rms_dists = []
-#         for i in tqdm(range(len(self.preds))):
-#             rms_dists.append(process_one(
-#                 self.preds[i], self.gts[i], validity[i]))
-#         rms_dists = np.array(rms_dists)
-#         match_rate = sum(rms_dists != None) / len(self.preds)
-#         mean_rms_dist = rms_dists[rms_dists != None].mean()
-#         return {'match_rate': match_rate,
-#                 'rms_dist': mean_rms_dist}
+    #         rms_dists = []
+    #         for i in tqdm(range(len(self.preds))):
+    #             rms_dists.append(process_one(
+    #                 self.preds[i], self.gts[i], validity[i]))
+    #         rms_dists = np.array(rms_dists)
+    #         match_rate = sum(rms_dists != None) / len(self.preds)
+    #         mean_rms_dist = rms_dists[rms_dists != None].mean()
+    #         return {"match_rate": match_rate,
+    #                 "rms_dist": mean_rms_dist}
 
     def get_metrics(self):
         return self.get_match_rate_and_rms()
@@ -176,81 +183,144 @@ class RecEval(object):
 
 class GenEval(object):
 
-    def __init__(self, pred_crys, gt_crys, n_samples=1000, eval_model_name=None):
-        self.crys = pred_crys
-        self.gt_crys = gt_crys
+    def __init__(self, gen_crys, db_crys, n_samples=1000, eval_model_name=None,
+                 ltol=0.2, stol=0.3, angle_tol=5, primitive_cell=True, scale=True,
+                 attempt_supercell=True, allow_subset=False):
+        self.gen_crys = gen_crys
+        self.db_crys = db_crys
         self.n_samples = n_samples
         self.eval_model_name = eval_model_name
 
-        valid_crys = [c for c in pred_crys if c.valid]
+        self.matcher = StructureMatcher(
+            ltol=ltol,
+            stol=stol,
+            angle_tol=angle_tol,
+            primitive_cell=primitive_cell,
+            scale=scale,
+            attempt_supercell=attempt_supercell,
+            allow_subset=allow_subset,
+        )
+
+        valid_crys = [c for c in gen_crys if c.valid]
         if len(valid_crys) >= n_samples:
             sampled_indices = np.random.choice(
                 len(valid_crys), n_samples, replace=False)
             self.valid_samples = [valid_crys[i] for i in sampled_indices]
         else:
             raise Exception(
-                f'not enough valid crystals in the predicted set: {len(valid_crys)}/{n_samples}')
+                f"not enough valid crystals in the predicted set: {len(valid_crys)}/{n_samples}")
 
     def get_validity(self):
-        comp_valid = np.array([c.comp_valid for c in self.crys]).mean()
-        struct_valid = np.array([c.struct_valid for c in self.crys]).mean()
-        valid = np.array([c.valid for c in self.crys]).mean()
-        return {'comp_valid': comp_valid,
-                'struct_valid': struct_valid,
-                'valid': valid}
+        comp_valid = np.array([c.comp_valid for c in self.gen_crys]).mean()
+        struct_valid = np.array([c.struct_valid for c in self.gen_crys]).mean()
+        valid = np.array([c.valid for c in self.gen_crys]).mean()
+        return {"comp_valid": comp_valid,
+                "struct_valid": struct_valid,
+                "valid": valid}
 
     def get_comp_diversity(self):
         comp_fps = [c.comp_fp for c in self.valid_samples]
         comp_fps = CompScaler.transform(comp_fps)
         comp_div = get_fp_pdist(comp_fps)
-        return {'comp_div': comp_div}
+        return {"comp_div": comp_div}
 
     def get_struct_diversity(self):
-        return {'struct_div': get_fp_pdist([c.struct_fp for c in self.valid_samples])}
+        return {"struct_div": get_fp_pdist([c.struct_fp for c in self.valid_samples])}
 
     def get_density_wdist(self):
         pred_densities = [c.structure.density for c in self.valid_samples]
-        gt_densities = [c.structure.density for c in self.gt_crys]
+        gt_densities = [c.structure.density for c in self.db_crys]
         wdist_density = wasserstein_distance(pred_densities, gt_densities)
-        return {'wdist_density': wdist_density}
+        return {"wdist_density": wdist_density}
 
     def get_num_elem_wdist(self):
         pred_nelems = [len(set(c.structure.species))
                        for c in self.valid_samples]
-        gt_nelems = [len(set(c.structure.species)) for c in self.gt_crys]
+        gt_nelems = [len(set(c.structure.species)) for c in self.db_crys]
         wdist_num_elems = wasserstein_distance(pred_nelems, gt_nelems)
-        return {'wdist_num_elems': wdist_num_elems}
+        return {"wdist_num_elems": wdist_num_elems}
 
     def get_prop_wdist(self):
         if self.eval_model_name is not None:
             pred_props = prop_model_eval(self.eval_model_name, [
-                                         c.dict for c in self.valid_samples])
+                c.dict for c in self.valid_samples])
             gt_props = prop_model_eval(self.eval_model_name, [
-                                       c.dict for c in self.gt_crys])
+                c.dict for c in self.db_crys])
             wdist_prop = wasserstein_distance(pred_props, gt_props)
-            return {'wdist_prop': wdist_prop}
+            return {"wdist_prop": wdist_prop}
         else:
-            return {'wdist_prop': None}
-#         return {'wdist_prob': 0.}
+            return {"wdist_prop": None}
 
     def get_coverage(self):
         cutoff_dict = COV_Cutoffs[self.eval_model_name]
         (cov_metrics_dict, combined_dist_dict) = compute_cov(
-            self.crys, self.gt_crys,
-            struc_cutoff=cutoff_dict['struc'],
-            comp_cutoff=cutoff_dict['comp'])
+            self.gen_crys, self.db_crys,
+            struc_cutoff=cutoff_dict["struc"],
+            comp_cutoff=cutoff_dict["comp"])
         return cov_metrics_dict
+
+    def get_uniqueness(self, algo=1, symmetric=True):
+        desc = f"Evaluating uniqueness [algo {algo}]"
+        if algo == 1:
+            unique = []
+            for i, crys1 in enumerate(tqdm(self.gen_crys[:-1], desc=desc)):
+                if crys1.constructed:
+                    q = [0] * (i + 1)
+                    for crys2 in self.gen_crys[i + 1:]:
+                        q.append(self.matcher.fit(crys1.structure, crys2.structure, symmetric=symmetric))
+                else:
+                    q = [0] * len(self.gen_crys)
+                unique.append(q)
+
+            unique.append([0] * len(self.gen_crys))
+            unique = np.array(unique)
+            unique += unique.T + np.eye(unique.shape[0]).astype(np.int64)
+
+            for i in range(len(unique)):
+                mask = np.where(unique[i] == 1)[0]
+                unique[mask[1:]] = 0
+            uniqueness = np.diag(unique).sum() / len(self.gen_crys)
+
+        elif algo == 2:
+            """MatterGen's algo, symmetric = False"""
+            unique_struct = []
+            unique_idx = []
+            for i, crys1 in enumerate(tqdm(self.gen_crys, desc=desc)):
+                if crys1.constructed:
+                    unique = True
+                    for crys2 in unique_struct:
+                        if self.matcher.fit(crys1.structure, crys2.structure, symmetric=symmetric):
+                            unique = False
+                            break
+                    if unique:
+                        unique_struct.append(crys1)
+                        unique_idx.append(i)
+            uniqueness = len(unique_struct) / len(self.gen_crys)
+
+        return {"uniqueness": uniqueness}
+
+    def get_novelty(self):
+        matched = 0
+        for i, crys1 in enumerate(tqdm(self.gen_crys, desc="Evaluating novelty")):
+            if crys1.constructed:
+                for j, crys2 in enumerate(self.db_crys):
+                    if self.matcher.fit(crys1.structure, crys2.structure, symmetric=True):
+                        matched += 1
+                        break
+        return {"novelty": 1 - matched / len(self.gen_crys)}
 
     def get_metrics(self):
         metrics = {}
         metrics.update(self.get_validity())
         metrics.update(self.get_comp_diversity())
         metrics.update(self.get_struct_diversity())
-        metrics.update(self.get_density_wdist())
-        metrics.update(self.get_num_elem_wdist())
-        metrics.update(self.get_prop_wdist())
+        metrics.update(self.get_uniqueness())
+        metrics.update(self.get_novelty())
+        # metrics.update(self.get_density_wdist())
+        # metrics.update(self.get_num_elem_wdist())
+        # metrics.update(self.get_prop_wdist())
+        # metrics.update(self.get_coverage())
         print(metrics)
-        metrics.update(self.get_coverage())
         return metrics
 
 
@@ -279,73 +349,34 @@ class OptEval(object):
             sr_5, sr_10, sr_15 = 0, 0, 0
         else:
             pred_props = prop_model_eval(self.eval_model_name, [
-                                         c.dict for c in valid_crys])
+                c.dict for c in valid_crys])
             percentiles = Percentiles[self.eval_model_name]
             props[valid_x, valid_y] = pred_props
             best_props = props.min(axis=0)
             sr_5 = (best_props <= percentiles[0]).mean()
             sr_10 = (best_props <= percentiles[1]).mean()
             sr_15 = (best_props <= percentiles[2]).mean()
-        return {'SR5': sr_5, 'SR10': sr_10, 'SR15': sr_15}
+        return {"SR5": sr_5, "SR10": sr_10, "SR15": sr_15}
 
     def get_metrics(self):
         return self.get_success_rate()
-
-
-class ClassEval(object):
-
-    def __init__(self, crys, model_path=None, num_classes=0):
-
-        self.crys = crys
-        self.model_path = Path(model_path)
-        self.num_classes = num_classes
-
-    def get_success_rate(self):
-        correct_class = np.zeros((self.num_classes, ))
-        crys = [{"index":i, "composition":str(c.structure.composition).replace(" ", "")} for i, c in enumerate(self.crys) if c.valid]
-        valid_crys = [c for c in self.crys if c.valid]
-        print('valid=', len(valid_crys), 'total = ', len(self.crys), ' % = ', len(valid_crys)/len(self.crys))
-        if len(valid_crys) > 0:
-            pred_class = class_model_eval(UNCOND_CDVAE, CLASSIFIER_CDVAE, self.model_path, [c.dict for c in valid_crys], self.num_classes)
-            print(pred_class)
-            for i, x in enumerate(pred_class):
-                correct_class[x] +=1
-                crys[i]["class"] = x
-            correct_class/=len(valid_crys)
-        return {
-            "valid_crys":len(valid_crys), "total_crys":len(self.crys), 
-            "crys":crys,
-            "percent_valid_crys":len(valid_crys)/len(self.crys), "class":{i:correct_class[i] for i in range(self.num_classes)}
-        }
-
-    def get_metrics(self):
-        return self.get_success_rate()
-
-
-def get_file_paths(root_path, task, label='', suffix='pt'):
-    if args.label == '':
-        out_name = f'eval_{task}.{suffix}'
-    else:
-        out_name = f'eval_{task}_{label}.{suffix}'
-    out_name = os.path.join(root_path, out_name)
-    return out_name
 
 
 def get_crystal_array_list(file_path, batch_idx=0):
     data = load_data(file_path)
     crys_array_list = get_crystals_list(
-        data['frac_coords'][batch_idx],
-        data['atom_types'][batch_idx],
-        data['lengths'][batch_idx],
-        data['angles'][batch_idx],
-        data['num_atoms'][batch_idx])
+        data["frac_coords"][batch_idx],
+        data["atom_types"][batch_idx],
+        data["lengths"][batch_idx],
+        data["angles"][batch_idx],
+        data["num_atoms"][batch_idx])
 
-    if 'input_data_batch' in data:
-        batch = data['input_data_batch']
+    if "input_data_batch" in data:
+        batch = data["input_data_batch"]
         if isinstance(batch, dict):
             true_crystal_array_list = get_crystals_list(
-                batch['frac_coords'], batch['atom_types'], batch['lengths'],
-                batch['angles'], batch['num_atoms'])
+                batch["frac_coords"], batch["atom_types"], batch["lengths"],
+                batch["angles"], batch["num_atoms"])
         else:
             true_crystal_array_list = get_crystals_list(
                 batch.frac_coords, batch.atom_types, batch.lengths,
@@ -362,11 +393,12 @@ def run_compute_metrics(args):
     cfg = load_config(Path(args.root_path))
     eval_model_name = cfg.data.eval_model_name
 
-    if 'recon' in args.tasks:
-        recon_file_path = get_file_paths(args.root_path, 'recon', args.label)
+    if "recon" in args.tasks:
+        assert args.recon_file_name is not None
+        recon_file_path = os.path.join(args.root_path, args.recon_file_name)
         crys_array_list, true_crystal_array_list = get_crystal_array_list(
             recon_file_path)
-        #true_crystal_array_list = true_crystal_array_list[:20]
+
         print("Get predicted structures")
         pred_crys = p_map(lambda x: Crystal(x, True), crys_array_list)
         print("\nGet ground-truth structures")
@@ -376,38 +408,36 @@ def run_compute_metrics(args):
         recon_metrics = rec_evaluator.get_metrics()
         all_metrics.update(recon_metrics)
 
-    if 'gen' in args.tasks:
-        gen_file_path = get_file_paths(args.root_path, 'gen', args.label)
+    if "gen" in args.tasks:
+        # from ..common.datamodule import CrystDataModule
+
+        assert args.gen_file_name is not None
+        gen_file_path = os.path.join(args.root_path, args.gen_file_name)
         crys_array_list, _ = get_crystal_array_list(gen_file_path)
-        gen_crys = p_map(lambda x: Crystal(x, False), crys_array_list)
+        gen_crys = p_map(lambda x: Crystal(x), crys_array_list, desc="Map gen crystals")
 
-        if 'recon' not in args.tasks:
-            recon_file_path = get_file_paths(args.root_path, 'recon', args.label)
-            if os.path.isfile(recon_file_path):
-                _, true_crystal_array_list = get_crystal_array_list(
-                    recon_file_path)
-            else:
-                from crystalgrw.common.datamodule import CrystDataModule
-                datamodule = CrystDataModule(**{k: v for k, v in cfg.data.datamodule.items()
-                                                if k != '_target_'},
-                                             dataset=cfg.data.datamodule._target_)
-                datamodule.setup(training=False)
-                test_loader = datamodule.test_dataloader()[0]
-                true_crystal_array_list = []
-                for batch in test_loader:
-                    true_crystal_array_list += get_crystals_list(
-                        batch.frac_coords, batch.atom_types, batch.lengths,
-                        batch.angles, batch.num_atoms)
+        # datamodule = CrystDataModule(**{k: v for k, v in cfg.data.datamodule.items()
+        #                                 if k != "_target_"},
+        #                              dataset=cfg.data.datamodule._target_)
+        # datamodule.setup(training=True)
+        # db_loader = datamodule.train_dataloader()
+        # db_crystal_array_list = []
+        # for batch in db_loader:
+        #     db_crystal_array_list += get_crystals_list(
+        #         batch.frac_coords, batch.atom_types, batch.lengths,
+        #         batch.angles, batch.num_atoms)
 
-            gt_crys = p_map(lambda x: Crystal(x, False), true_crystal_array_list)
+        db_crystal_array_list = pd.read_csv(os.path.abspath(args.dataset_path))["cif"]
+        db_crys = p_map(lambda x: Crystal(x, analyze=False), db_crystal_array_list, desc="Map db crystals")
 
         gen_evaluator = GenEval(
-            gen_crys, gt_crys, eval_model_name=eval_model_name, n_samples=500)
+            gen_crys, db_crys, eval_model_name=eval_model_name, n_samples=args.n_samples)
         gen_metrics = gen_evaluator.get_metrics()
         all_metrics.update(gen_metrics)
 
-    if 'opt' in args.tasks:
-        opt_file_path = get_file_paths(args.root_path, 'opt', args.label)
+    if "opt" in args.tasks:
+        assert args.opt_file_name is not None
+        opt_file_path = os.path.join(args.root_path, args.opt_file_name)
         crys_array_list, _ = get_crystal_array_list(opt_file_path)
         opt_crys = p_map(lambda x: Crystal(x), crys_array_list)
 
@@ -415,38 +445,26 @@ def run_compute_metrics(args):
         opt_metrics = opt_evaluator.get_metrics()
         all_metrics.update(opt_metrics)
 
-
-    if 'class' in args.tasks:
-
-        opt_file_path = get_file_paths(args.root_path, args.type, args.label)
-        crys_array_list, _ = get_crystal_array_list(opt_file_path)
-
-        opt_crys = p_map(lambda x: Crystal(x), crys_array_list)
-
-        opt_evaluator = ClassEval(opt_crys, args.classifier_path, 7)
-        opt_metrics = opt_evaluator.get_metrics()
-        all_metrics.update(opt_metrics)        
-
     print(all_metrics)
 
-    if args.label == '':
-        metrics_out_file = f'eval_metrics_{args.type}.json'
+    if args.suffix == "":
+        metrics_out_file = f"eval_metrics.json"
     else:
-        metrics_out_file = f'eval_metrics_{args.type}_{args.label}.json'
+        metrics_out_file = f"eval_metrics_{args.suffix}.json"
     metrics_out_file = os.path.join(args.root_path, metrics_out_file)
 
     # only overwrite metrics computed in the new run.
     if Path(metrics_out_file).exists():
-        with open(metrics_out_file, 'r') as f:
+        with open(metrics_out_file, "r") as f:
             written_metrics = json.load(f)
             if isinstance(written_metrics, dict):
                 written_metrics.update(all_metrics)
             else:
-                with open(metrics_out_file, 'w') as f:
+                with open(metrics_out_file, "w") as f:
                     json.dump(all_metrics, f)
         if isinstance(written_metrics, dict):
-            with open(metrics_out_file, 'w') as f:
+            with open(metrics_out_file, "w") as f:
                 json.dump(written_metrics, f)
     else:
-        with open(metrics_out_file, 'w') as f:
+        with open(metrics_out_file, "w") as f:
             json.dump(all_metrics, f)
