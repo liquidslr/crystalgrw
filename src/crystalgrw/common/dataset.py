@@ -11,12 +11,12 @@ from .data_utils import add_scaled_lattice_prop, preprocess_tensors
 from . import DTYPE
 
 
-def load_cif_data(df):
+def load_cif_data(df, primitive=True):
     from pymatgen.core import Structure
     tqdm.pandas()
 
     def get_data_dict(cif_txt):
-        struct = Structure.from_str(cif_txt, 'cif')
+        struct = Structure.from_str(cif_txt, "cif", primitive=primitive)
         data = {}
         data["lengths"] = np.array(struct.lattice.lengths)
         data["angles"] = np.array(struct.lattice.angles)
@@ -61,11 +61,11 @@ def load_xyz_data(path, data_type="ase_traj"):
     return cached_data
 
 
-def load_data(path, data_type=None, prop_list=None, lattice_scale_method=None):
+def load_data(path, data_type=None, prop_list=None, primitive=True):
     df = pd.read_csv(path)
 
     if data_type == "cif":
-        cached_data = load_cif_data(df).tolist()
+        cached_data = load_cif_data(df, primitive).tolist()
 
     elif (data_type == "ase_traj") or (data_type == "xyz"):
         cached_data = load_xyz_data(path, data_type=data_type)
@@ -115,7 +115,7 @@ class CrystDataset(Dataset):
         self.graph_method = graph_method
         self.lattice_scale_method = lattice_scale_method
 
-        self.cached_data = load_data(path, data_type, prop, lattice_scale_method)
+        self.cached_data = load_data(path, data_type, prop, primitive)
 
         self.lattice_scaler = None
         self.scaler = None
