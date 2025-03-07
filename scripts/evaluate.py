@@ -29,6 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--down_sample_traj_step", default=10, type=int)
     parser.add_argument("--sample_num_atoms", default="random")
     parser.add_argument("--labels", nargs="+", default=None, type=float)
+    parser.add_argument("--label_string", default=None)
     parser.add_argument("--guidance_strength", default=1, type=float)
 
     parser.add_argument('--load_data', default=False, type=bool)

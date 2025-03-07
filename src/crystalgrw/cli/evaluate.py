@@ -318,6 +318,16 @@ def run_eval(args):
     else:
         args.sample_num_atoms = int(args.sample_num_atoms)
 
+    if (args.labels is None) and (args.label_string is not None):
+        cat, labels = args.label_string.split("_")
+        if cat == "cpg":
+            import json
+            with open(os.path.abspath("data/cpg.json"), "r") as f:
+                cpgs = json.load(f)
+            labels = cpgs[labels]
+    else:
+        labels = args.labels
+
     if "gen" in args.tasks:
         if load_data:
             print("Evaluate model on the partial generation task.")
@@ -332,7 +342,7 @@ def run_eval(args):
                 force_num_atoms=args.force_num_atoms,
                 force_atom_types=args.force_atom_types,
                 down_sample_traj_step=args.down_sample_traj_step,
-                labels=args.labels,
+                labels=labels,
                 guidance_strength=args.guidance_strength,
             )
 
@@ -343,7 +353,7 @@ def run_eval(args):
             samples = full_generation(model=model, ld_kwargs=ld_kwargs,
                                       num_batches_to_sample=args.num_batches_to_samples,
                                       sample_num_atoms=args.sample_num_atoms, batch_size=args.batch_size,
-                                      down_sample_traj_step=args.down_sample_traj_step, labels=args.labels,
+                                      down_sample_traj_step=args.down_sample_traj_step, labels=labels,
                                       guidance_strength=args.guidance_strength)
 
         if args.suffix == "":
@@ -366,7 +376,7 @@ def run_eval(args):
             force_num_atoms=args.force_num_atoms,
             force_atom_types=args.force_atom_types,
             down_sample_traj_step=args.down_sample_traj_step,
-            labels=args.labels,
+            labels=labels,
             guidance_strength=args.guidance_strength,
         )
 
