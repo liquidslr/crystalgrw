@@ -17,5 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--suffix", default="")
     parser.add_argument("--tasks", nargs="+", default=["gen"])
     parser.add_argument("--n_samples", default=1000, type=int)
+    parser.add_argument("--unique_algo", default=1, type=int)
+    parser.add_argument("--unique_sym", default=False, type=bool)
     args = parser.parse_args()
     main(args)

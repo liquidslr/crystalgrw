@@ -9,6 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from p_tqdm import p_map
 from scipy.stats import wasserstein_distance
+from scipy.sparse import csr_matrix, lil_matrix, eye
 
 from pymatgen.core.structure import Structure
 from pymatgen.core.composition import Composition
@@ -185,11 +186,15 @@ class GenEval(object):
 
     def __init__(self, gen_crys, db_crys, n_samples=1000, eval_model_name=None,
                  ltol=0.2, stol=0.3, angle_tol=5, primitive_cell=True, scale=True,
-                 attempt_supercell=True, allow_subset=False):
+                 attempt_supercell=True, allow_subset=False, unique_algo=1, unique_sym=True):
         self.gen_crys = gen_crys
         self.db_crys = db_crys
         self.n_samples = n_samples
         self.eval_model_name = eval_model_name
+        self.unique_algo = unique_algo
+        self.unique_sym = unique_sym
+        self.unique_idx = None
+        self.novel_idx = None
 
         self.matcher = StructureMatcher(
             ltol=ltol,
@@ -259,55 +264,76 @@ class GenEval(object):
             comp_cutoff=cutoff_dict["comp"])
         return cov_metrics_dict
 
-    def get_uniqueness(self, algo=1, symmetric=True):
-        desc = f"Evaluating uniqueness [algo {algo}]"
-        if algo == 1:
-            unique = []
+    def get_uniqueness(self):
+        desc = f"Evaluating uniqueness [algo {self.unique_algo}]"
+        N = len(self.gen_crys)
+
+        if self.unique_algo == 1:
+            data, noncrys, row, col = [], [], [], []
+            unique = lil_matrix((N, N))
+
             for i, crys1 in enumerate(tqdm(self.gen_crys[:-1], desc=desc)):
                 if crys1.constructed:
-                    q = [0] * (i + 1)
-                    for crys2 in self.gen_crys[i + 1:]:
-                        q.append(self.matcher.fit(crys1.structure, crys2.structure, symmetric=symmetric))
+                    for j, crys2 in enumerate(self.gen_crys[i + 1:]):
+                        j += i + 1
+                        if self.matcher.fit(crys1.structure, crys2.structure, symmetric=self.unique_sym):
+                            data.append(1)
+                            row.append(i)
+                            col.append(j)
                 else:
-                    q = [0] * len(self.gen_crys)
-                unique.append(q)
+                    noncrys.append(i)
 
-            unique.append([0] * len(self.gen_crys))
-            unique = np.array(unique)
-            unique += unique.T + np.eye(unique.shape[0]).astype(np.int64)
+            for r, c, d in zip(row, col, data):
+                unique[r, c] = d
+            diag = eye(N, format="csr")
+            diag[noncrys] = 0
+            unique += diag
 
-            for i in range(len(unique)):
-                mask = np.where(unique[i] == 1)[0]
-                unique[mask[1:]] = 0
-            uniqueness = np.diag(unique).sum() / len(self.gen_crys)
+            r_nz, c_nz = unique.tocsr().nonzero()
+            for i in range(N):
+                non_diag_indices = c_nz[(r_nz == i) & (c_nz != i)]
+                for j in non_diag_indices:
+                    unique[:, j] = 0
+            diag = unique.diagonal()
+            unique_idx = np.where(diag != 0)[0]
+            uniqueness = {"uniqueness": diag.sum() / N}
 
-        elif algo == 2:
-            """MatterGen's algo, symmetric = False"""
+        elif self.unique_algo == 2:
             unique_struct = []
             unique_idx = []
             for i, crys1 in enumerate(tqdm(self.gen_crys, desc=desc)):
                 if crys1.constructed:
                     unique = True
                     for crys2 in unique_struct:
-                        if self.matcher.fit(crys1.structure, crys2.structure, symmetric=symmetric):
+                        if self.matcher.fit(crys1.structure, crys2.structure, symmetric=self.unique_sym):
                             unique = False
                             break
                     if unique:
                         unique_struct.append(crys1)
                         unique_idx.append(i)
-            uniqueness = len(unique_struct) / len(self.gen_crys)
+            uniqueness = {"uniqueness": len(unique_struct) / N}
 
-        return {"uniqueness": uniqueness}
+        self.unique_idx = unique_idx
+        return uniqueness
 
     def get_novelty(self):
         matched = 0
+        non_novel_idx = []
         for i, crys1 in enumerate(tqdm(self.gen_crys, desc="Evaluating novelty")):
             if crys1.constructed:
                 for j, crys2 in enumerate(self.db_crys):
                     if self.matcher.fit(crys1.structure, crys2.structure, symmetric=True):
                         matched += 1
+                        non_novel_idx.append(i)
                         break
+        self.novel_idx = [k for k in range(len(self.gen_crys)) if k not in non_novel_idx]
         return {"novelty": 1 - matched / len(self.gen_crys)}
+
+    def get_unique_and_novel(self):
+        assert self.unique_idx is not None
+        assert self.novel_idx is not None
+        unn = [i for i in self.unique_idx if i in self.novel_idx]
+        return {"unique_and_novel": len(unn) / len(self.gen_crys)}
 
     def get_metrics(self):
         metrics = {}
@@ -316,6 +342,7 @@ class GenEval(object):
         metrics.update(self.get_struct_diversity())
         metrics.update(self.get_uniqueness())
         metrics.update(self.get_novelty())
+        metrics.update(self.get_unique_and_novel())
         # metrics.update(self.get_density_wdist())
         # metrics.update(self.get_num_elem_wdist())
         # metrics.update(self.get_prop_wdist())
@@ -390,8 +417,9 @@ def get_crystal_array_list(file_path, batch_idx=0):
 def run_compute_metrics(args):
     all_metrics = {}
 
-    cfg = load_config(Path(args.root_path))
-    eval_model_name = cfg.data.eval_model_name
+    # cfg = load_config(Path(args.root_path))
+    # eval_model_name = cfg.data.eval_model_name
+    eval_model_name = None
 
     if "recon" in args.tasks:
         assert args.recon_file_name is not None
@@ -431,7 +459,9 @@ def run_compute_metrics(args):
         db_crys = p_map(lambda x: Crystal(x, analyze=False), db_crystal_array_list, desc="Map db crystals")
 
         gen_evaluator = GenEval(
-            gen_crys, db_crys, eval_model_name=eval_model_name, n_samples=args.n_samples)
+            gen_crys, db_crys, eval_model_name=eval_model_name, n_samples=args.n_samples,
+            unique_algo=args.unique_algo, unique_sym=args.unique_sym,
+        )
         gen_metrics = gen_evaluator.get_metrics()
         all_metrics.update(gen_metrics)
 
