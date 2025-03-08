@@ -13,7 +13,7 @@ Manifolds depicted in the figure are $`\mathbb{T}^2`$, $`\Delta^2`$, and $`\math
 </p>
 
 ## Installation
-```
+```bash
 git clone https://github.com/trachote/crystalgrw.git
 cd crystalgrw
 conda env create -f environment.yaml
@@ -21,46 +21,81 @@ conda activate crystalgrw
 ```
 
 ## Usage
-Training command:
-```
+### Training a Model
+To train a model, run the following command:
+```bash
 python scripts/train.py --config_path conf/mp_condition.yaml \
                         --output_path output_dir
 ```
-Generation command:
-```
-python scripts/evaluate.py --model_path output_dir \
-                           --batch_size 8 \
-                           --num_batches_to_samples 1 \
-                           --num_evals 1 \
-                           --adaptive_timestep 1
-```
-Generation with guided conditions command:
-```
-python scripts/evaluate.py --model_path output_dir \
-                           --batch_size 8 \
-                           --num_batches_to_samples 1 \
-                           --num_evals 1 \
-                           --adaptive_timestep 1 \
-                           --labels 1 0 0 0 0 0 0 \
-                           --guidance_strength 0.5
-```
-Compute metrics has not been tested with the current version. An update soon will come.
 
-### Example runs with MP-20 dataset
-- Unzip data/mp_20.zip
-- Change path-to-folder/crystalgrw in conf/*.yaml files to ```pwd```
-  - conf/mp_example.yaml is a config file for training the model.
-  - conf/mp_condition.yaml is a config file for training the model with controlled conditions.
-- Run commands
+### Generating Crystal Structures
+To generate structures, run the following command:
+```bash
+python scripts/evaluate.py --model_path output_dir \
+                           --batch_size 8 \
+                           --num_batches_to_samples 10 \
+                           --adaptive_timestep 1 \
+                           --save_xyz True 
+```
+
+### Generating Crystal Structures with Guided Conditions
+To generate structures guided by an input point group, run the following command:
+```bash
+python scripts/evaluate.py --model_path output_dir \
+                           --batch_size 8 \
+                           --num_batches_to_samples 10 \
+                           --adaptive_timestep 1 \
+                           --label_string cpg_m-3m \
+                           --guidance_strength 0.5 \
+                           --save_xyz True
+```
+
+### Compute Metrics 
+To evaluate compositional and structural validity, uniqueness, 
+and novelty of generated structures, run the following command:
+```bash
+python compute_metrics.py --root_path path/to/folder \
+                          --dataset_path data/mp_20/train.csv \
+                          --gen_file_name gen_file_name \
+                          --n_samples 1000 \
+                          --task gen
+```
+
+### Example Runs with MP-20 Dataset
+1. Unzip `data/mp_20.zip`.
+2. Update paths in `conf/*.yaml` files by replacing `path-to-folder/crystalgrw` with `pwd`.
+   - `conf/mp_example.yaml`: Configuration for training the model.
+   - `conf/mp_condition.yaml`: Configuration for training with controlled conditions.
+3. Train the model using the **Training a Model** command.
+
+### Generate structures from pretrained models
+1. Unzip the pretrained models into your project folder.
+2. Use the **Generating Crystal Structures** command to generate structures.
+3. Use the **Generating Structures with Guided Conditions** command to generate structures based on specific point groups.
 
 ## Configurations
-The CrystalGRW setup can corrupt three properties: 
-fractional coordinates, atomic types, and lattice matrices. 
-For specific tasks, you may need to corrupt only some of these properties. 
-This can be configured through a config file by setting the ```corrupt_{property}``` tags.
+CrystalGRW can choose to corrupt either of three crystal properties:
+- *fractional coordinates*
+- *atomic types*
+- *lattice matrices*
+
+Depending on the specific task, you may want to alter only some of these properties. 
+Adjust the settings in the configuration file by modifying the `corrupt_{property}` tags in file `conf/*.yaml` accordingly.
+
+## Pretrained Models
+To use pretrained models, download them from the following link: 
+[Pretrained Models Download](<https://zenodo.org/records/14948252>)
+
+### Loading a Pretrained Model
+1. Once downloaded, unzip the model into your project folder.
+2. `pretrained_mp20_2024-09-24` a model trained on MP-20 dataset, 
+use the **Generating Crystal Structures** command to generate structures. 
+3. `pretrained_mp20_cond_2024-12-01` a model trained on MP-20 dataset and conditioned on point groups, 
+use the **Generating Structures with Guided Conditions** command to generate structures.
+
 
 ## Citations
-Ones may find this repository is useful, please cite our papers:
+If you use CrystalGRW in your research, please cite:
 ```
 @misc{tangsongcharoen2025crystalgrw,
       title={CrystalGRW: Generative Modeling of Crystal Structures with Targeted Properties via Geodesic Random Walks}, 
